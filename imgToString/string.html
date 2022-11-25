@@ -421,7 +421,7 @@
           var pos_x = r; //~~(c * char_w)
           var pos_y = c; //~~(r * char_h)
           var { avg, rgba } = getBlockGray(imageData, pos_x, pos_y);
-          let iData = imageToGrey(imageData);
+          // let iData = imageToGrey(imageData);
           var ch = map[avg]; // 根据亮度值获取字符
           output += ch;
           ctx.font = "10px Arial";
