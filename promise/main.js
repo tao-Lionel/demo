@@ -9,7 +9,7 @@ const REJECTED = "REJECTED";
  * @param {*} resolve promise 对象构造函数中的 resolve
  * @param {*} reject promise 对象构造函数中的 reject
  */
-function resolvePromise(promise, x, resolve, reject) {
+function resolvePromiseX(promise, x, resolve, reject) {
   // 如果promise和x指向同一对象，以TypeError为拒因，拒绝执行promise
   if (promise === x) {
     return reject(new TypeError("Chaining cycle detected for promise #<MyPromise>"));
@@ -35,7 +35,7 @@ function resolvePromise(promise, x, resolve, reject) {
           y => {
             if (isCalled) return;
             isCalled = true;
-            resolvePromise(promise, y, resolve, reject);
+            resolvePromiseX(promise, y, resolve, reject);
           },
           r => {
             if (isCalled) return;
@@ -84,7 +84,7 @@ class MyPromise {
         this.value = value;
 
         // 从容器中取出onFulfilled并执行
-        this.onFulfilledCallbackList.forEach(fn => fn());
+        this.onFulfilledCallbackList.map(fn => fn());
       }
     };
 
@@ -96,7 +96,7 @@ class MyPromise {
         this.reason = reason;
 
         // 从容器中取出onRejected并执行
-        this.onRejectedCallbackList.forEach(fn => fn());
+        this.onRejectedCallbackList.map(fn => fn());
       }
     };
 
@@ -117,17 +117,17 @@ class MyPromise {
       typeof onRejected === "function"
         ? onRejected
         : reason => {
-            throw reason;
-          };
+          throw reason;
+        };
 
     const promise2 = new MyPromise((resolve, reject) => {
       // onFulfilled在执行结束后会被调用，第一个参数是promise的终值
       if (this.status === FULFILLED) {
-        // 以宏任务的方式执行resolvePromise,保证能拿到promise2的实例
+        // 以宏任务的方式执行resolvePromiseX,保证能拿到promise2的实例
         setTimeout(() => {
           try {
             let x = onFulfilled(this.value);
-            resolvePromise(promise2, x, resolve, reject);
+            resolvePromiseX(promise2, x, resolve, reject);
           } catch (e) {
             reject(e);
           }
@@ -136,11 +136,11 @@ class MyPromise {
 
       // onRejected在被拒绝后会被调用，第一个参数是promise的拒因
       if (this.status === REJECTED) {
-        // 以宏任务的方式执行resolvePromise,保证能拿到promise2的实例
+        // 以宏任务的方式执行resolvePromiseX,保证能拿到promise2的实例
         setTimeout(() => {
           try {
             let x = onRejected(this.reason);
-            resolvePromise(promise2, x, resolve, reject);
+            resolvePromiseX(promise2, x, resolve, reject);
           } catch (e) {
             reject(e);
           }
@@ -150,22 +150,22 @@ class MyPromise {
       // 状态是pending时,存放onFulfilled和onRejected
       if (this.status === PENDING) {
         this.onFulfilledCallbackList.push(() => {
-          // 以宏任务的方式执行resolvePromise,保证能拿到promise2的实例
+          // 以宏任务的方式执行resolvePromiseX,保证能拿到promise2的实例
           setTimeout(() => {
             try {
               let x = onFulfilled(this.value);
-              resolvePromise(promise2, x, resolve, reject);
+              resolvePromiseX(promise2, x, resolve, reject);
             } catch (e) {
               reject(e);
             }
           }, 0);
         });
         this.onRejectedCallbackList.push(() => {
-          // 以宏任务的方式执行resolvePromise,保证能拿到promise2的实例
+          // 以宏任务的方式执行resolvePromiseX,保证能拿到promise2的实例
           setTimeout(() => {
             try {
               let x = onRejected(this.reason);
-              resolvePromise(promise2, x, resolve, reject);
+              resolvePromiseX(promise2, x, resolve, reject);
             } catch (e) {
               reject(e);
             }
