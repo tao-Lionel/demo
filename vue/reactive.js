@@ -2,11 +2,16 @@
  * @description: 实现响应式
  */
 
-// 测试数据
-const data = { foo: 1, bar: 2 };
+const TriggerType = {
+  SET: "SET",
+  ADD: "ADD",
+  DELETE: "DELETE"
+};
 
 // 存储副作用函数的‘桶’
 const bucket = new WeakMap();
+
+const ITERATE_KEY = Symbol();
 
 // 用一个全局变量存储被注册的副作用函数
 let activeEffect;
@@ -41,24 +46,101 @@ function effect(fn, options = {}) {
   return effectFn;
 }
 
-// 对原始数据的代理
-const obj = new Proxy(data, {
-  // 拦截读取操作
-  get(target, key) {
-    // 将副作用函数activeEffect 添加到存贮副作用函数的桶中
-    track(target, key);
-    // 返回属性值
-    return target[key];
-  },
+// 封装响应式函数,isShallow 代表是否为浅响应，默认为false, 即非浅响应
+// isReadonly 代表是否只读，默认为false，即非只读
+function createReactive(obj, isShallow = false, isReadonly = false) {
+  // 对原始数据的代理
+  return new Proxy(obj, {
+    // 拦截读取操作
+    get(target, key, receiver) {
+      // 代理对象可以通过raw 属性访问原始数据
+      if (key === "raw") {
+        return target;
+      }
 
-  // 拦截设置操作
-  set(target, key, newVal) {
-    // 设置属性值
-    target[key] = newVal;
-    // 把副作用函数从桶中取出并执行
-    trigger(target, key);
-  }
-});
+      // 非只读的并且key的类型不是symbol时候才需要建立响应联系
+      if (!isReadonly && typeof key !== "symbol") {
+        // 将副作用函数activeEffect 添加到存贮副作用函数的桶中
+        track(target, key);
+      }
+
+      // 得到原始值结果
+      const res = Reflect.get(target, key, receiver);
+      // 如果是浅响应，则直接返回原始值
+      if (isShallow) {
+        return res;
+      }
+      // 深响应
+      if (typeof res === "object" && ref !== null) {
+        // 如果数据是只读，则调用readonly 对值进行包装，否则调用reactive 将结果包装成响应式数据并返回
+        return isReadonly ? readonly(res) : reactive(res);
+      }
+      // 返回属性值
+      return res;
+    },
+    // 拦截设置操作
+    set(target, key, newVal, receiver) {
+      // 如果是只读，打印警告信息并返回
+      if (isReadonly) {
+        console.warn(`属性${key}是只读`);
+        return true;
+      }
+
+      // 先获取旧值
+      const oldVal = target[key];
+      // 如果属性不存在，说明是在添加新属性，否则是设置已有属性
+      // 如果代理目标是数组，则检测被设置的索引值是否小于数组长度
+      // 如果是，则视为SET 操作，否则是 ADD 操作
+      const type = Array.isArray(target)
+        ? Number(key) < target.length
+          ? TriggerType.SET
+          : TriggerType.ADD
+        : Object.prototype.hasOwnProperty.call(target, key)
+        ? TriggerType.SET
+        : TriggerType.ADD;
+      // 设置属性值
+      const res = Reflect.set(target, key, newVal, receiver);
+
+      // 如果target === receiver.raw 说明receiver 就是 target 的代理对象
+      if (target === receiver.raw) {
+        // 比较新值与旧值，只要不全等，并且都不是NaN 的情况才会触发响应
+        if (oldVal !== newVal && (oldVal === oldVal || newVal === newVal)) {
+          // 把副作用函数从桶中取出并执行
+          trigger(target, key, type, newVal);
+        }
+      }
+
+      return res;
+    },
+    has(target, key) {
+      track(target, key);
+      return Reflect.has(target, key);
+    },
+    ownKeys(target) {
+      // 如果操作目标是数组，则使用length 属性作为key 并建立响应联系,否则将副作用函数和ITERATE_KEY 关联
+      track(target, Array.isArray(target) ? "length" : ITERATE_KEY);
+      return Reflect.ownKeys(target);
+    },
+    deletePrototype(target, key) {
+      // 如果是只读，打印警告信息并返回
+      if (isReadonly) {
+        console.warn(`属性${key}是只读`);
+        return true;
+      }
+      // 检查被操作的属性是否是对象自己的属性
+      const hedKey = Object.prototype.hasOwnProperty.call(target, key);
+      // 使用Reflect.deletePrototype 完成属性的删除
+      const res = Reflect.deleteProperty(target, key);
+
+      if (res && hedKey) {
+        // 只有被删除的属性是对象自己的属性并且成功删除时，才触发更新
+        trigger(target, key, TriggerType.DELETE);
+      }
+
+      return res;
+    }
+  });
+}
 
 // 在get拦截函数内调用 track函数追踪变化
 function track(target, key) {
@@ -90,15 +172,45 @@ function track(target, key) {
 }
 
 // 在set拦截函数中调用用trigger函数触发变化
-function trigger(target, key) {
+function trigger(target, key, type, newVal) {
   // 根据target从桶中取得depsMap，他是key->effects
   const depsMap = bucket.get(target);
   if (!depsMap) return;
   // 根据key 取得所有副作用函数 effect
   const effects = depsMap.get(key);
+
   // 执行副作用函数
   // 创建一个新的Set集合，避免无限调用
   const effectsToRun = new Set();
+
+  // 当操作类型是 ADD 并且目标对象是数组时，应该取出并执行那些与length 属性相关联的副作用函数
+  // if (type === TriggerType.ADD && Array.isArray(target)) {
+  //   // 取出与length 相关联的副作用函数
+  //   const lengthEffects = depsMap.get("length");
+  //   lengthEffects &&
+  //     lengthEffects.forEach((effectFn) => {
+  //       if (effectFn !== activeEffect) {
+  //         effectsToRun.add(effectFn);
+  //       }
+  //     });
+  // }
+
+  // 如果操作目标是数组，并且修改了数组的length属性
+  if (Array.isArray(target) && key === "length") {
+    // 对于索引大于或等于新的length 值的元素
+    // 需要把所有相关联的副作用函数取出并添加到effectsToRun中待执行
+    depsMap.forEach((effects, key) => {
+      if (key >= newVal) {
+        effects.forEach((effectFn) => {
+          if (effectFn !== activeEffect) {
+            effectsToRun.add(effectFn);
+          }
+        });
+      }
+    });
+  }
+
+  // 将与key关联的副作用函数添加到effectsToRun
   effects &&
     effects.forEach((effectFn) => {
       // 如果trigger 触发执行的副作用函数与当前正在执行的副作用函数相同，则不触发执行
@@ -106,6 +218,20 @@ function trigger(target, key) {
         effectsToRun.add(effectFn);
       }
     });
+
+  // 只有当操作类型为ADD或者DELETE时，才触发与ITERATE_KEY 相关联的副作用函数重新执行
+  if (type === TriggerType.ADD || type === TriggerType.DELETE) {
+    // 取得与ITERATE_KEY 相关联的副作用函数
+    const iterateEffects = depsMap.get(ITERATE_KEY);
+    // 将与ITERATE_KEY 相关联的副作用函数添加到 effectsToRun
+    iterateEffects &&
+      iterateEffects.forEach((effectFn) => {
+        if (effectFn !== activeEffect) {
+          effectsToRun.add(effectFn);
+        }
+      });
+  }
+
   effectsToRun.forEach((effectFn) => {
     // 如果一个副作用函数存在调度器，则调用该调度器，并将副作用函数作为参数传递
     if (effectFn.options.scheduler) {
@@ -128,27 +254,6 @@ function cleanup(effectFn) {
   }
   // 最后需要重置effect.deps数组
   effectFn.deps.length = 0;
-}
-
-// 调度器
-// 定义一个任务队列
-const jobQueue = new Set();
-// 使用promise.resolve() 创建一个Promise实例，我们用它将一个任务添加到微任务队列
-const p = Promise.resolve();
-
-// 一个标志代表是否正在刷新队列
-let isFlushing = false;
-function flushJob() {
-  // 如果队列正在刷新，则什么都不做
-  if (isFlushing) return;
-  // 设置为true,代表正在刷新
-  isFlushing = true;
-  // 在微任务队列中刷新jobQueue 队列
-  p.then(() => {
-    jobQueue.forEach((job) => job());
-  }).finally(() => {
-    isFlushing = false;
-  });
 }
 
 // 实现计算属性
@@ -185,14 +290,6 @@ function computed(getter) {
   };
   return obj;
 }
-
-// const sumRes = computed(() => obj.foo + obj.bar);
-
-// effect(() => {
-//   console.log(sumRes.value);
-// });
-
-// obj.foo++;
 
 // watch 实现原理
 function watch(source, cb, options = {}) {
@@ -269,13 +366,99 @@ function traverse(value, seen = new Set()) {
   return value;
 }
 
-watch(
-  () => obj.foo,
-  (newValue, oldValue) => {
-    console.log("obj.foo的值变了", newValue, oldValue);
-  },
-  {
-    immediate: true
+// 定义一个Map 实例，存储原始对象到代理对象的映射
+const reactiveMap = new Map();
+
+function reactive(obj) {
+  // 优先通过原始对象obj 寻找之前创建的代理对象，如果找到了，直接返回已有的代理对象
+  const existionProxy = reactiveMap.get(obj);
+  if (existionProxy) return existionProxy;
+
+  const proxy = createReactive(obj);
+  reactiveMap.set(obj, proxy);
+  return proxy;
+}
+
+// 浅响应
+function shallowReactive(obj) {
+  return createReactive(obj, true);
+}
+
+// 只读
+function readonly(obj) {
+  return createReactive(obj, false, true);
+}
+
+function shallowReadonly(obj) {
+  return createReactive(obj, true, true);
+}
+
+// // 测试调度器
+// // 定义一个任务队列
+// const jobQueue = new Set();
+// // 使用promise.resolve() 创建一个Promise实例，我们用它将一个任务添加到微任务队列
+// const p = Promise.resolve();
+
+// // 一个标志代表是否正在刷新队列
+// let isFlushing = false;
+// function flushJob() {
+//   // 如果队列正在刷新，则什么都不做
+//   if (isFlushing) return;
+//   // 设置为true,代表正在刷新
+//   isFlushing = true;
+//   // 在微任务队列中刷新jobQueue 队列
+//   p.then(() => {
+//     jobQueue.forEach((job) => job());
+//   }).finally(() => {
+//     isFlushing = false;
+//   });
+// }
+
+// 测试数据
+const data = { foo: 1, bar: 2 };
+
+// const obj = reactive(data);
+
+// // 测试computed
+// const sumRes = computed(() => obj.foo + obj.bar);
+// effect(() => {
+//   console.log(sumRes.value);
+// });
+// obj.foo++;
+
+// // 测试watch
+// watch(
+//   () => obj.foo,
+//   (newValue, oldValue) => {
+//     console.log("obj.foo的值变了", newValue, oldValue);
+//   },
+//   {
+//     immediate: true
+//   }
+// );
+// obj.foo++;
+
+// const obj = {};
+// const proto = { bar: 1 };
+// const child = reactive(obj);
+// const parent = reactive(proto);
+// console.log(child.raw);
+// console.log(parent.raw);
+// Object.setPrototypeOf(child, parent);
+
+// effect(() => {
+//   console.log(child.bar);
+// });
+
+// child.bar = 2;
+
+const arr = reactive(["foo"]);
+
+effect(() => {
+  for (const key in arr) {
+    console.log(key);
   }
-);
-obj.foo++;
+});
+
+arr[1] = "bar";
+// arr.length = 1;
