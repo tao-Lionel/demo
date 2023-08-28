@@ -1,3 +1,7 @@
+/**
+ * @description:  实现渲染函数
+ */
+
 function createRenderer(options) {
   const { createElement, insert, setElementText } = options;
 
@@ -16,7 +20,7 @@ function createRenderer(options) {
       setElementText(el, vnode.children);
     } else if (Array.isArray(vnode.children)) {
       // 如果children是数组 则遍历每一个子节点，并调用patch 函数挂载它
-      vnode.children.forEach(child => {
+      vnode.children.forEach((child) => {
         patch(null, child, el);
       });
     }
@@ -70,7 +74,7 @@ function createRenderer(options) {
   }
 
   return {
-    render,
+    render
   };
 }
 
@@ -97,9 +101,9 @@ const renderer2 = createRenderer({
       const name = key.slice(2).toLowerCase();
       if (nextValue) {
         if (!invoker) {
-          invoker = el._vei[key] = e => {
-            if ((Array.isArray(invoker.value))) {
-              invoker.value.forEach(fn => fn(e));
+          invoker = el._vei[key] = (e) => {
+            if (Array.isArray(invoker.value)) {
+              invoker.value.forEach((fn) => fn(e));
             } else {
               invoker.value(e);
             }
@@ -130,21 +134,21 @@ const renderer2 = createRenderer({
     } else {
       el.setAttribute(key, vnode.props[key]);
     }
-  },
+  }
 });
 
 // 虚拟dom
 const vnode = {
   type: "h1",
   props: {
-    id: "foo",
+    id: "foo"
   },
   children: [
     {
       type: "p",
-      children: "hello",
-    },
-  ],
+      children: "hello"
+    }
+  ]
 };
 
 // // 调用render 函数渲染vnode
