@@ -1,7 +1,18 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { userCounterStore } from "@/store/counter";
+import { userCounterStore, userCounterOptions } from "src/store/index";
+import { storeToRefs } from "pinia";
+
+const storeA = userCounterOptions();
+console.log(storeA.counterA++);
+
+storeA.$reset();
+
 const store = userCounterStore();
+
+const { double, counter } = storeToRefs(store);
+// aciton 直接解构
+const { increment } = store;
 
 defineProps<{ msg: string }>();
 
@@ -17,14 +28,16 @@ const count = ref(0);
       @click="
         () => {
           count++;
-          store.increment();
+          increment();
         }
       "
     >
       count is {{ count }}
     </button>
 
-    <div>double is {{ store.double }}</div>
+    <div>double is {{ double }}</div>
+    <div>counter is {{ counter }}</div>
+    <div>storeA.counterA is {{ storeA.counterA }}</div>
     <p>
       Edit
       <code>components/HelloWorld.vue</code> to test HMR
@@ -33,8 +46,7 @@ const count = ref(0);
 
   <p>
     Check out
-    <a href="https://vuejs.org/guide/quick-start.html#local" target="_blank">create-vue</a>, the official Vue + Vite
-    starter
+    <a href="https://vuejs.org/guide/quick-start.html#local" target="_blank">create-vue</a>, the official Vue + Vite starter
   </p>
   <p>
     Install

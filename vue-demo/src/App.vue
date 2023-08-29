@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import HelloWorld from "./components/HelloWorld.vue";
-import { userCounterStore } from "@/store/counter";
+import { userCounterStore } from "src/store/counter";
 const store = userCounterStore();
 </script>
 

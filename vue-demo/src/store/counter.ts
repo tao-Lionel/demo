@@ -2,13 +2,13 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 
 export const userCounterStore = defineStore("counter", () => {
-  const count = ref(0);
+  const counter = ref(0);
 
-  const double = computed(() => count.value * 2);
+  const double = computed(() => counter.value * 2);
 
   function increment() {
-    count.value++;
+    counter.value++;
   }
 
-  return { count, increment, double };
+  return { counter, increment, double };
 });
