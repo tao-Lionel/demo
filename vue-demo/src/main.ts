@@ -1,10 +1,10 @@
 import { createApp } from "vue";
 import "./style.css";
 import App from "./App.vue";
-import { createPinia } from "pinia";
+import store, { key } from "./storeVuex";
 
-const pinia = createPinia();
 const app = createApp(App);
 
-app.use(pinia);
+app.use(store, key);
+
 app.mount("#app");

@@ -1,7 +1,15 @@
 <script setup lang="ts">
-import HelloWorld from "./components/HelloWorld.vue";
-import { userCounterStore } from "src/store/counter";
-const store = userCounterStore();
+import testVueUse from "./components/testVueUse.vue";
+import testVuex from "./components/testVuex.vue";
+import { useStore } from "./storeVuex/index";
+
+const store = useStore();
+
+const setVuex = () => {
+  store.commit("setTestVuex");
+  console.log(store.state);
+  // store.dispatch("testActions", 100);
+};
 </script>
 
 <template>
@@ -13,8 +21,10 @@ const store = userCounterStore();
       <img src="./assets/vue.svg" class="logo vue" alt="Vue logo" />
     </a>
   </div>
-  <div>{{ store.count }}</div>
-  <HelloWorld msg="Vite + Vue" />
+  <testVueUse />
+  <testVuex />
+
+  <button @click="setVuex">加</button>
 </template>
 
 <style scoped>
