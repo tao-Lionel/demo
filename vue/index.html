@@ -53,193 +53,23 @@
     //   };
     // }
 
-    // Function.prototype.myApply = function (context) {
-    //   if (typeof this !== "function") {
-    //     throw "调用者必须是函数";
-    //   }
+    // 手写getQueryString
 
-    //   if (context === undefined || context === null) {
-    //     context = window;
-    //   } else {
-    //     context = Object(context);
-    //   }
-
-    //   const fn = Symbol("fn");
-
-    //   context[fn] = this;
-
-    //   let arg = arguments[1];
-    //   let res;
-    //   if (arg) {
-    //     res = context[fn](...arg);
-    //   } else {
-    //     res = context[fn]();
-    //   }
-
-    //   delete context[fn];
-
-    //   return res;
-    // };
-
-    // bind 会返回一个函数
-    Function.prototype.myBind = function (context) {
-      if (typeof this !== "function") {
-        throw "调用者是函数";
+    let url = "https://www.baidu.com/s?id=123&name=why&phone=13876769797";
+    function getQueryString(name) {
+      const index = url.indexOf("?");
+      if (index === -1) {
+        return undefined;
       }
-
-      let args = [...arguments].slice(1);
-      let self = this;
-      let fn = function (...innerArgs) {
-        // 如果返回出去的函数被new了
-        if (this instanceof fn) {
-          // this 指向新创建的实例对象
-          console.log("self", self);
-          return new self(...args, ...innerArgs);
+      let queryArr = url.substring(index + 1).split("&");
+      for (const item of queryArr) {
+        const p = item.split("=");
+        if (p[0] === name) {
+          return p[1];
         }
-
-        // 用apply 方法绑定
-        return self.apply(context, args.concat(innerArgs));
-      };
-
-      return fn;
-    };
-
-    // 实现sleep
-    // function sleep(wait) {
-    //   return new Promise((resolve, reject) => {
-    //     setTimeout(() => {
-    //       resolve();
-    //     }, wait);
-    //   });
-    // }
-
-    // async function foo() {
-    //   await sleep(5000);
-    //   console.log("5秒后调用");
-    // }
-
-    // foo();
-
-    // 手写Promise
-
-    // promise 有三种状态：pending、resolve、rejected
-    // promise 的状态只能从pending变为resolve 或者 从pending 变为 rejected
-    // promise 的状态一旦改变就不会在变，永远都是这个状态
-    // 一旦新建promise 就会立即执行
-
-    // 定义 promise 的三种状态
-    const PENDING = "pending";
-    const REJECTED = "rejected";
-    const RESOLVE = "resolve";
-
-    class myPromise {
-      constructor(fn) {
-        // 初始状态是pending
-        this.status = PENDING;
-        // 成功后的值
-        this.value = undefined;
-        // 失败后的原因
-        this.reason = undefined;
-        // 定义两个容器存放对应的回调 用来解决异步调用resolve和reject
-        this.resolveList = [];
-        this.rejectList = [];
-
-        // 成功的回调
-        const resolve = (value) => {
-          // 状态只能从pending变为resolve
-          if (this.status === PENDING) {
-            this.status = RESOLVE;
-            // 保存传入的参数
-            this.value = value;
-
-            // 从容器中取出success
-            this.resolveList.map((fn) => fn(this.value));
-          }
-        };
-
-        // 失败的回调
-        const reject = (reason) => {
-          // 状态只能从pending变为reject
-          if (this.status === PENDING) {
-            this.status = REJECTED;
-            // 保存失败的原因
-            this.reason = reason;
-
-            // 从容器中取出error
-            this.rejectList.map((fn) => fn(this.reason));
-          }
-        };
-
-        // 执行传入的方法
-        // 如果传入的方法报错的话就改变promise状态
-        try {
-          fn(resolve, reject);
-        } catch (e) {
-          reject(e);
-        }
-      }
-
-      // 实现then 接受两个方法作为参数，都是可选的
-      then(success, error) {
-        success = typeof success === "function" ? success : (v) => v;
-        error =
-          typeof error === "function"
-            ? error
-            : (e) => {
-                throw e;
-              };
-
-        // 成功
-        if (this.status === RESOLVE) {
-          success(this.value);
-        }
-
-        // 失败
-        if (this.status === REJECTED) {
-          error(this.reason);
-        }
-
-        // 状态是pending 时 存放success 和 error
-        if (this.status === PENDING) {
-          this.resolveList.push(success);
-          this.rejectList.push(error);
-        }
-      }
-
-      // 实现catch
-      catch(error) {
-        this.then(null, error);
-      }
-
-      // 实现finally 可以用then来实现， 不管成功失败都会执行
-      finally(fn) {
-        this.then(
-          (v) => {
-            fn();
-            return v;
-          },
-          (e) => {
-            fn();
-            throw e;
-          }
-        );
       }
     }
 
-    let p = new myPromise((resolve, reject) => {
-      console.log("111");
-      setTimeout(() => {
-        reject("99");
-        resolve("11111");
-      }, 1000);
-    });
-    p.then(
-      (v) => {
-        console.log("成功了", v);
-      },
-      (e) => {
-        console.log("失败了", e);
-      }
-    );
+    console.log(getQueryString("phone")); // why
   </script>
 </html>
