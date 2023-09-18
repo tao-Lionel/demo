@@ -6,6 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>图片裁剪</title>
     <style>
+      * {
+        margin: 0;
+        padding: 0;
+        user-select: none;
+      }
       .preview-wrap {
         position: relative;
       }
@@ -17,6 +22,9 @@
         display: none;
         cursor: move;
       }
+      #canvas {
+        margin-left: 50px;
+      }
     </style>
   </head>
   <body>
@@ -26,16 +34,16 @@
       <div id="select-box"></div>
     </div>
 
-    <canvas id="canvas"></canvas>
+    <canvas id="canvas" width="200" height="200"></canvas>
   </body>
   <script src="./index.js"></script>
   <script>
     const input = document.querySelector("input");
     const preview = document.querySelector(".preview");
     const selectBox = document.querySelector("#select-box");
+    const tl = document.querySelector(".tl");
 
-    const image = new Image();
-    let imageW, imageH;
+    let imgFile = null; // 存放裁剪后的图片
 
     // 获取canvas的上下文
     const canvas = document.querySelector("#canvas");
@@ -46,103 +54,74 @@
       startX: 50,
       startY: 50,
       width: 100,
-      height: 100
+      height: 100,
     };
 
     // 上传图片的回调
-    input.onchange = (e) => {
+    input.onchange = e => {
       const file = e.target.files[0];
       // 图片预览
       const reader = new FileReader();
       reader.readAsDataURL(file);
-      reader.onload = (e) => {
-        image.onload = () => {
-          console.log(image.offsetTop);
-          // 通过Image 获取图片宽高
-          imageW = image.width;
-          imageH = image.height;
-          //   drawImage();
-          // 图片加载完成
-          selectBox.style.display = "block";
-          // 把区域选择框放到 img 上
-          selectBox.style.top = image.offsetTop + "px";
-          selectBox.style.left = image.offsetLeft + "px";
-        };
-        image.src = e.target.result;
+      reader.onload = e => {
+        // 图片加载完成
+        selectBox.style.display = "block";
+        // 把区域选择框放到 img 上
+        selectBox.style.top = preview.offsetTop + "px";
+        selectBox.style.left = preview.offsetLeft + "px";
         preview.src = e.target.result;
       };
     };
 
-    selectBox.addEventListener("mousedown", (e) => {
+    selectBox.addEventListener("mousedown", e => {
       console.log("点击");
-      document.onmousemove = () => {
+      const X = e.clientX - e.target.offsetLeft;
+      const Y = e.clientY - e.target.offsetTop;
+      document.onmousemove = ev => {
         console.log("移动");
+        selectBox.style.top = ev.clientY - Y + "px";
+        selectBox.style.left = ev.clientX - X + "px";
+
+        // 限制选择框的拖动范围，禁止拖出图片区域
+        if (selectBox.offsetLeft <= preview.offsetLeft) {
+          selectBox.style.left = preview.offsetLeft + "px";
+        }
+        if (selectBox.offsetLeft >= preview.offsetWidth - selectBox.offsetWidth) {
+          selectBox.style.left = preview.offsetWidth - selectBox.offsetWidth + "px";
+        }
+        if (selectBox.offsetTop <= preview.offsetTop) {
+          selectBox.style.top = preview.offsetTop + "px";
+        }
+        if (selectBox.offsetTop >= preview.offsetHeight - selectBox.offsetHeight) {
+          selectBox.style.top = preview.offsetHeight - selectBox.offsetHeight + "px";
+        }
+
+        drawImg();
       };
+
+      document.onmouseup = () => {
+        document.onmousemove = null;
+      };
+
+      return false;
     });
 
-    document.onmouseup = () => {
-      document.onmousemove = null;
-    };
+    function drawImg() {
+      const sX = selectBox.offsetLeft - preview.offsetLeft; // 区域选择框左侧位置
+      const sY = selectBox.offsetTop - preview.offsetTop; // 区域选择框上方位置
+      const sW = selectBox.offsetWidth; // 区域选择框宽度
+      const sH = selectBox.offsetHeight; // 区域选择框高度
 
-    // 利用canvas 绘制图片
-    // function drawImage() {
-    //   // 设置canvas宽高和图片一致
-    //   canvas.width = imageW;
-    //   canvas.height = imageH;
-    //   // c.clearRect(0, 0, imageW, imageH);
-    //   ctx.drawImage(image, 0, 0);
-    //   drawTrim();
-    // }
+      // 把图片画到canvas
+      ctx.drawImage(preview, sX, sY, sW, sH, 0, 0, canvas.width, canvas.height);
 
-    // // 绘制裁剪选择框
-    // function drawTrim() {
-    //   // 绘制蒙层
-    //   ctx.save();
-    //   ctx.fillStyle = "rgba(0,0,0,0.6)";
-    //   ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // 把裁剪后的canvas 图像转为Blob
+      canvas.toBlob(blob => {
+        if (blob === null) return false;
+        imgFile = blob;
+      }, "image/png");
 
-    //   // 将蒙层凿开
-    //   ctx.globalCompositeOPeration = "source-atop";
-    //   ctx.clearRect(trimPosition.startX, trimPosition.startY, trimPosition.width, trimPosition.height);
-
-    //   // 绘制4个边框像素点
-    //   ctx.globalCompositeOPeration = "source-over";
-    //   ctx.fillStyle = "#fc178f";
-    //   let size = 10; // 像素点大小
-    //   ctx.fillRect(trimPosition.startX - size / 2, trimPosition.startY - size / 2, size, size);
-    //   ctx.fillRect(trimPosition.startX + trimPosition.width - size / 2, trimPosition.startY - size / 2, size, size);
-    //   ctx.fillRect(trimPosition.startX - size / 2, trimPosition.startY + trimPosition.height - size / 2, size, size);
-    //   ctx.fillRect(
-    //     trimPosition.startX + trimPosition.width - size / 2,
-    //     trimPosition.startY + trimPosition.height - size / 2,
-    //     size,
-    //     size
-    //   );
-    //   ctx.restore();
-
-    //   //   ctx.save();
-    //   //   ctx.globalCompositeOPeration = "destination-over";
-    //   //   ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-    //   //   ctx.restore();
-
-    //   console.log(ctx.isPointInPath(30, 70));
-    // }
-
-    // canvas.addEventListener("mousemove", (e) => {
-    //   if (
-    //     trimPosition.startX <= e.offsetX &&
-    //     e.offsetX <= trimPosition.width + trimPosition.startX &&
-    //     trimPosition.startY <= e.offsetY &&
-    //     e.offsetY <= trimPosition.height + trimPosition.startY
-    //   ) {
-    //     body.style.cursor = "move";
-    //   } else {
-    //     body.style.cursor = "default";
-    //   }
-    // });
-
-    // canvas.addEventListener("mouseup", (e) => {
-    //   console.log("松开");
-    // });
+      const file = new File([imgFile], "test.png", { type: "image/png" });
+    }
   </script>
 </html>
